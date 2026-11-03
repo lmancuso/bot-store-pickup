@@ -1,26 +1,56 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #ece5dd;
+  --foreground: #111827;
+  --chat-header: #0f766e;
+  --chat-header-fg: #ffffff;
+  --chat-header-muted: #ccfbf1;
+  --chat-header-border: #0d9488;
+  --chat-accent: #0d9488;
+  --chat-accent-hover: #0f766e;
+  --chat-bubble-user: #d1fae5;
+  --chat-bubble-user-fg: #064e3b;
+  --chat-bubble-user-muted: #047857;
+  --chat-bubble-bot: #ffffff;
+  --chat-bubble-bot-fg: #1f2937;
+  --chat-bubble-bot-muted: #6b7280;
+  --chat-input-bar: #f3f4f6;
+  --chat-input-border: #e5e7eb;
+  --chat-wallpaper: #ece5dd;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-chat-header: var(--chat-header);
+  --color-chat-header-fg: var(--chat-header-fg);
+  --color-chat-header-muted: var(--chat-header-muted);
+  --color-chat-header-border: var(--chat-header-border);
+  --color-chat-accent: var(--chat-accent);
+  --color-chat-accent-hover: var(--chat-accent-hover);
+  --color-chat-bubble-user: var(--chat-bubble-user);
+  --color-chat-bubble-user-fg: var(--chat-bubble-user-fg);
+  --color-chat-bubble-user-muted: var(--chat-bubble-user-muted);
+  --color-chat-bubble-bot: var(--chat-bubble-bot);
+  --color-chat-bubble-bot-fg: var(--chat-bubble-bot-fg);
+  --color-chat-bubble-bot-muted: var(--chat-bubble-bot-muted);
+  --color-chat-input-bar: var(--chat-input-bar);
+  --color-chat-input-border: var(--chat-input-border);
+  --color-chat-wallpaper: var(--chat-wallpaper);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: #f3f4f6;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Leaflet container needs explicit height from parent */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font: inherit;
 }
