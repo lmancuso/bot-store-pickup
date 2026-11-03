@@ -20,12 +20,20 @@ import {
   type OrderConfirmation,
 } from "@/lib/order";
 
+export type PendingRelocate = {
+  loc: LatLng;
+  vendorId: string;
+  vendorName: string;
+};
+
 export type SessionState = {
   category: Category | null;
   vendorId: string | null;
   cart: CartItem[];
   /** Si hay carrito y el usuario pidió otra categoría, esperamos sí/no */
   pendingCategory: Category | null;
+  /** Si hay carrito y al moverse cambia el local más cercano, esperamos sí/no */
+  pendingRelocate: PendingRelocate | null;
   lastOrder: OrderConfirmation | null;
   userLocation: LatLng;
 };
@@ -47,6 +55,7 @@ export function initialSession(userLocation: LatLng): SessionState {
     vendorId: null,
     cart: [],
     pendingCategory: null,
+    pendingRelocate: null,
     lastOrder: null,
     userLocation,
   };
@@ -129,7 +138,14 @@ function selectVendorForCategory(
   const nearest = nearestOpenVendor(state.userLocation, list);
   if (!nearest) {
     return {
-      state: { ...state, category, vendorId: null, cart: clearCart(), pendingCategory: null },
+      state: {
+        ...state,
+        category,
+        vendorId: null,
+        cart: clearCart(),
+        pendingCategory: null,
+        pendingRelocate: null,
+      },
       replies: [
         `No hay locales de ${category} abiertos cerca tuyo ahora. Probá otra categoría: ${categoryList()}.`,
       ],
@@ -142,6 +158,7 @@ function selectVendorForCategory(
     vendorId: nearest.id,
     cart: clearCart(),
     pendingCategory: null,
+    pendingRelocate: null,
     lastOrder: null,
   };
   return {
@@ -161,7 +178,59 @@ export function processUserText(
 ): TurnResult {
   const trimmed = text.trim();
 
-  // Confirmación de vaciar carrito
+  // Confirmación de vaciar carrito al cambiar de local por relocate
+  if (state.pendingRelocate) {
+    const pending = state.pendingRelocate;
+    if (isAffirmative(trimmed)) {
+      const vendor = getVendorById(pending.vendorId);
+      if (!vendor) {
+        return {
+          state: { ...state, pendingRelocate: null },
+          replies: ["No pude cambiar de local. Probá de nuevo en el mapa."],
+          menuButtons: state.vendorId
+            ? (getVendorById(state.vendorId)?.menu ?? null)
+            : null,
+        };
+      }
+      return {
+        state: {
+          ...state,
+          userLocation: pending.loc,
+          vendorId: vendor.id,
+          cart: clearCart(),
+          pendingRelocate: null,
+          pendingCategory: null,
+          lastOrder: null,
+        },
+        replies: [
+          `Actualicé tu ubicación y pasamos a ${vendor.name}.`,
+          menuText(vendor).replace(/\*/g, ""),
+        ],
+        menuButtons: vendor.menu,
+      };
+    }
+    if (isNegative(trimmed)) {
+      const vendor = state.vendorId ? getVendorById(state.vendorId) : null;
+      return {
+        state: { ...state, pendingRelocate: null },
+        replies: [
+          `Dale, seguimos en ${vendor?.name ?? "el local actual"} con tu carrito. La ubicación del mapa no se cambió.`,
+        ],
+        menuButtons: vendor?.menu ?? null,
+      };
+    }
+    return {
+      state,
+      replies: [
+        `Tu carrito tiene ítems de ${state.vendorId ? getVendorById(state.vendorId)?.name ?? "este local" : "este local"}. El más cercano ahora sería ${pending.vendorName}. ¿Querés vaciar el carrito y cambiar? (sí / no)`,
+      ],
+      menuButtons: state.vendorId
+        ? (getVendorById(state.vendorId)?.menu ?? null)
+        : null,
+    };
+  }
+
+  // Confirmación de vaciar carrito al cambiar de categoría
   if (state.pendingCategory) {
     if (isAffirmative(trimmed)) {
       return {
@@ -362,10 +431,9 @@ export { vendors };
 
 
 export function relocateUser(state: SessionState, loc: LatLng): TurnResult {
-  const nextBase: SessionState = { ...state, userLocation: loc };
   if (!state.category) {
     return {
-      state: nextBase,
+      state: { ...state, userLocation: loc, pendingRelocate: null },
       replies: [
         "Marqué tu ubicación en el mapa. Decime qué querés comer: pizza, empanadas, hamburguesas, sushi o helado.",
       ],
@@ -374,12 +442,17 @@ export function relocateUser(state: SessionState, loc: LatLng): TurnResult {
   }
   const list = vendorsByCategory(state.category);
   const nearest = nearestOpenVendor(loc, list);
+  const currentVendor = state.vendorId ? getVendorById(state.vendorId) : null;
+
   if (!nearest) {
+    // Sin locales abiertos: actualizamos ubicación; el carrito queda huérfano de menú cercano
     return {
       state: {
-        ...nextBase,
+        ...state,
+        userLocation: loc,
         vendorId: null,
-        cart: clearCart(),
+        cart: state.cart.length > 0 ? state.cart : clearCart(),
+        pendingRelocate: null,
       },
       replies: [
         `Actualicé tu ubicación. No hay locales de ${state.category} abiertos cerca.`,
@@ -387,21 +460,43 @@ export function relocateUser(state: SessionState, loc: LatLng): TurnResult {
       menuButtons: null,
     };
   }
+
   if (nearest.id === state.vendorId) {
     return {
-      state: nextBase,
+      state: { ...state, userLocation: loc, pendingRelocate: null },
       replies: [
         `Actualicé tu ubicación. Seguimos con ${nearest.name} (sigue siendo el más cercano abierto).`,
       ],
       menuButtons: nearest.menu,
     };
   }
-  // Cambió el más cercano: reiniciamos carrito del local anterior
+
+  // Cambió el más cercano y hay ítems: pedir confirmación (como TC-09)
+  if (state.cart.length > 0) {
+    return {
+      state: {
+        ...state,
+        pendingRelocate: {
+          loc,
+          vendorId: nearest.id,
+          vendorName: nearest.name,
+        },
+        pendingCategory: null,
+      },
+      replies: [
+        `Al moverte, el local más cercano pasa a ser ${nearest.name}. Tenés ítems en ${currentVendor?.name ?? "el local actual"}. ¿Querés vaciar el carrito y cambiar? (sí / no)`,
+      ],
+      menuButtons: currentVendor?.menu ?? null,
+    };
+  }
+
   return {
     state: {
-      ...nextBase,
+      ...state,
+      userLocation: loc,
       vendorId: nearest.id,
       cart: clearCart(),
+      pendingRelocate: null,
       pendingCategory: null,
       lastOrder: null,
     },

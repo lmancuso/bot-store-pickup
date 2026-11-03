@@ -182,6 +182,17 @@ export function ChatApp() {
     [],
   );
 
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.webdriver) return;
+    const w = window as Window & {
+      __storePickupPickLocation?: (pos: LatLng) => void;
+    };
+    w.__storePickupPickLocation = handlePickLocation;
+    return () => {
+      delete w.__storePickupPickLocation;
+    };
+  }, [handlePickLocation]);
+
   const total = cartTotal(session.cart);
   const subtitle = isTyping
     ? "escribiendo…"

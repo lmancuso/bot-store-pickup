@@ -88,6 +88,7 @@ function parseSession(raw: unknown): SessionState {
     vendorId: null,
     cart: [],
     pendingCategory: null,
+    pendingRelocate: null,
     lastOrder: null,
     userLocation: {
       lat: DEFAULT_USER_LOCATION.lat,
@@ -102,11 +103,24 @@ function parseSession(raw: unknown): SessionState {
     typeof s.userLocation.lng === "number"
       ? s.userLocation
       : fallback.userLocation;
+  const pendingRelocate =
+    s.pendingRelocate &&
+    typeof s.pendingRelocate === "object" &&
+    typeof (s.pendingRelocate as { vendorId?: unknown }).vendorId === "string" &&
+    typeof (s.pendingRelocate as { vendorName?: unknown }).vendorName === "string" &&
+    typeof (s.pendingRelocate as { loc?: { lat?: unknown; lng?: unknown } }).loc?.lat ===
+      "number" &&
+    typeof (s.pendingRelocate as { loc?: { lat?: unknown; lng?: unknown } }).loc?.lng ===
+      "number"
+      ? (s.pendingRelocate as SessionState["pendingRelocate"])
+      : null;
+
   return {
     category: (s.category as Category | null) ?? null,
     vendorId: typeof s.vendorId === "string" ? s.vendorId : null,
     cart: Array.isArray(s.cart) ? s.cart.filter(isCartItem) : [],
     pendingCategory: (s.pendingCategory as Category | null) ?? null,
+    pendingRelocate,
     lastOrder: (s.lastOrder as OrderConfirmation | null) ?? null,
     userLocation: loc,
   };
